@@ -1,0 +1,40 @@
+String baseUrl = 'https://ppp-test.nuvei.com/ppp/api/v1'; // Sandbox endpoint
+String merchantId = 'Sandbox merchant ID'; // Sandbox merchant ID
+String merchantSiteId = 'Sandbox site ID'; // Sandbox site ID
+String secretKey = 'Sandbox secret key'; // Sandbox secret key
+
+// Step 1: Generate Session Token in Sandbox
+HttpRequest sessionRequest = new HttpRequest();
+sessionRequest.setEndpoint(baseUrl + '/getSessionToken.do');
+sessionRequest.setMethod('POST');
+sessionRequest.setHeader('Content-Type', 'application/json');
+
+// Generate unique IDs and timestamp
+String clientRequestId = 'CR_' + String.valueOf(Datetime.now().getTime());
+String timestamp = Datetime.now().format('yyyyMMddHHmmss');
+
+// Generate checksum for sandbox
+String checksumInput = merchantId + merchantSiteId + clientRequestId + timestamp + secretKey;
+String checksum = EncodingUtil.convertToHex(Crypto.generateDigest('SHA-256', Blob.valueOf(checksumInput)));
+
+// Build request body for sandbox
+Map<String, Object> sessionBody = new Map<String, Object>{
+    'merchantId' => merchantId,
+    'merchantSiteId' => merchantSiteId,
+    'clientRequestId' => clientRequestId,
+    'timeStamp' => timestamp,
+    'checksum' => checksum
+};
+sessionRequest.setBody(JSON.serialize(sessionBody));
+
+// Execute request
+Http http = new Http();
+HttpResponse sessionResponse = http.send(sessionRequest);
+
+// Debug response
+System.debug('Session Token Response: ' + sessionResponse.getBody());
+
+// Parse response
+Map<String, Object> sessionResult = (Map<String, Object>)JSON.deserializeUntyped(sessionResponse.getBody());
+String sessionToken = (String)sessionResult.get('sessionToken');
+System.debug('Sandbox Session Token: ' + sessionToken);
