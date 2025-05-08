@@ -1,0 +1,63 @@
+//Nuvei Payment Void Script in Apex
+String baseUrl = 'https://ppp-test.nuvei.com/ppp/api/v1'; // Sandbox endpoint
+String merchantId = ' Sandbox merchant ID'; // Sandbox merchant ID
+String merchantSiteId = 'Sandbox site ID'; // Sandbox site ID
+String secretKey = 'Sandbox secret key'; // Sandbox secret key
+String clientUniqueId = 'VOID_' + System.now().getTime();
+String amount = '5.00';
+String currencyCode = 'USD';
+
+// Original transaction ID from the payment to void
+String originalTransactionId = '8110000000007993098';
+
+String timestamp = Datetime.now().format('yyyyMMddHHmmss');
+
+String checksumInput = merchantId + merchantSiteId + clientUniqueId + 
+amount + currencyCode + originalTransactionId + 
+timestamp + secretKey;
+Blob hash = Crypto.generateDigest('SHA256', Blob.valueOf(checksumInput));
+String checksum = EncodingUtil.convertToHex(hash);
+
+
+// Build void request
+HttpRequest voidRequest = new HttpRequest();
+voidRequest.setEndpoint(baseUrl + '/voidTransaction.do');
+voidRequest.setMethod('POST');
+voidRequest.setHeader('Content-Type', 'application/json');
+voidRequest.setTimeout(12000); // 12 second timeout
+
+Map<String, Object> requestBody = new Map<String, Object>{
+    'merchantId' => merchantId,
+    'merchantSiteId' => merchantSiteId,
+    'clientUniqueId' => clientUniqueId,
+    'amount' => amount,
+    'currency' => currencyCode,
+    'relatedTransactionId' => originalTransactionId,
+    'timeStamp' => timestamp,
+    'checksum' => checksum
+};
+voidRequest.setBody(JSON.serialize(requestBody));
+
+// Execute request
+try {
+    Http http = new Http();
+    HttpResponse voidResponse = http.send(voidRequest);
+    
+    // Process response
+    if(voidResponse.getStatusCode() == 200) {
+        Map<String, Object> responseMap = (Map<String, Object>)JSON.deserializeUntyped(voidResponse.getBody());
+        System.debug('Void Response: ' + JSON.serializePretty(responseMap));
+        
+        if(responseMap.get('status') == 'SUCCESS') {
+            System.debug('Void successful! New transaction ID: ' + responseMap.get('transactionId'));
+        } else {
+            System.debug('Void failed: ' + responseMap.get('reason'));
+        }
+    } else {
+        System.debug('HTTP Error: ' + voidResponse.getStatusCode() + ' - ' + voidResponse.getStatus());
+        System.debug('Response Body: ' + voidResponse.getBody());
+    }
+} catch(Exception e) {
+    System.debug('Error processing void: ' + e.getMessage());
+    System.debug('Stack Trace: ' + e.getStackTraceString());
+}
